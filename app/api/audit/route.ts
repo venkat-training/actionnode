@@ -20,10 +20,13 @@ interface ProductAudit {
   brand: string
   barcode?: string
   isPlastic: boolean
+  isGlass?: boolean
+  hasPackagingData?: boolean
   packagingDetails: string[]
   ecoScore: string
   ecoScoreGrade: string
   aiSwapSuggestion: string
+  sourceUrl?: string
   confidence: 'high' | 'medium' | 'low'
 }
 
@@ -153,6 +156,7 @@ export async function GET(request: NextRequest) {
             ecoScore: gradeMap[grade] || gradeMap.unknown,
             ecoScoreGrade: grade,
             aiSwapSuggestion: aiSuggestion,
+            sourceUrl: p.code ? `https://world.openfoodfacts.org/product/${p.code}` : undefined,
             confidence: hasPackagingData ? 'high' : ('low' as const),
           }
         })
