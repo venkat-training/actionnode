@@ -5,6 +5,16 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+// Realistic fallback intensity values (gCO₂eq/kWh) per zone
+// Used when Electricity Maps API is unavailable and no cache exists
+const FALLBACK_INTENSITY_BY_ZONE: Record<string, number> = {
+  'AUS-NSW': 285,
+  'AUS-VIC': 310,
+  'AUS-QLD': 340,
+  'AU-NSW': 285,   // alias
+  'AU-VIC': 310,
+  'AU-QLD': 340,
+}
 const ZONES = (process.env.GRID_ZONES || 'AU-NSW,AU-VIC,AU-QLD').split(',')
 const CACHE_MINUTES = parseInt(process.env.GRID_CACHE_MINUTES || '10')
 
