@@ -30,6 +30,44 @@ interface ProductAudit {
   confidence: 'high' | 'medium' | 'low'
 }
 
+async function fetchOpenFoodFacts(query: string, attempts = 3) {
+  const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&action=process&json=1&page_size=5&fields=product_name,brands,code,packaging_tags,ecoscore_grade,ecoscore_data,categories_tags,countries_tags`
+
+  let lastError: string = 'Unknown upstream error'
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 7000)
+      let res: Response
+      try {
+        res = await fetch(offUrl, {
+          headers: { 'User-Agent': 'ActionNode/1.0 (earthday2026@actionnode.app)' },
+          next: { revalidate: 3600 }, // Cache product data for 1 hour
+          signal: controller.signal,
+        })
+      } finally {
+        clearTimeout(timeout)
+      }
+
+      if (!res.ok) {
+        lastError = `Open Food Facts HTTP ${res.status}`
+      } else {
+        const data = await res.json()
+        if (Array.isArray(data?.products)) return data
+        lastError = 'Open Food Facts returned invalid payload shape'
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : 'Unknown fetch error'
+    }
+
+    if (attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 300))
+    }
+  }
+
+  throw new Error(lastError)
+}
+
 async function getAISwapSuggestion(
   productName: string,
   category: string,
@@ -92,18 +130,13 @@ export async function GET(request: NextRequest) {
 
   try {
     // Fetch from Open Food Facts — free, no key needed
-    const offUrl = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&action=process&json=1&page_size=5&fields=product_name,brands,code,packaging_tags,ecoscore_grade,ecoscore_data,categories_tags,countries_tags`
-    
-    const res = await fetch(offUrl, {
-      headers: { 'User-Agent': 'ActionNode/1.0 (earthday2026@actionnode.app)' },
-      next: { revalidate: 3600 } // Cache product data for 1 hour
-    })
-
-    if (!res.ok) throw new Error('Open Food Facts unavailable')
-    const data = await res.json()
+    const data = await fetchOpenFoodFacts(query)
 
     if (!data.products || data.products.length === 0) {
-      return NextResponse.json({ products: [], message: 'No products found' })
+      return NextResponse.json({
+        products: [],
+        message: 'No products found for this search. Try a broader term (e.g. "cola", "water", "ketchup").'
+      })
     }
 
     // Process and enrich products (limit to 4)
@@ -167,8 +200,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Audit API error:', error)
     return NextResponse.json(
-      { error: 'Product lookup failed. Please try again.' },
-      { status: 503 }
+      {
+        error: 'Product search is temporarily unavailable.',
+        message: 'We could not reach the product data provider right now. Please retry in a few seconds.',
+        transient: true,
+      },
+      { status: 502 }
     )
   }
 }

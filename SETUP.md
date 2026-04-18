@@ -106,6 +106,9 @@ grep -r "ELECTRICITY_MAPS" .next/static/ && echo "FAIL - key exposed!" || echo "
 # 2. Test grid endpoint (should work)
 curl http://localhost:3000/api/grid
 
+# Optional: verify Electricity Maps token directly (NSW)
+curl "https://api.electricitymaps.com/v3/carbon-intensity/latest?zone=AU-NSW" -H "auth-token: YOUR_TOKEN"
+
 # 3. Test audit endpoint
 curl "http://localhost:3000/api/audit?q=coca+cola"
 
