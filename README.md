@@ -20,6 +20,19 @@ ActionNode is a real-time sustainability dashboard that turns complex environmen
 
 ---
 
+## Repository Snapshot (Current)
+
+This repository snapshot contains the backend Route Handlers and database schema that power the dashboard features:
+
+- `app/api/grid/route.ts` (Grid Health API)
+- `app/api/audit/route.ts` (Plastic Audit API)
+- `app/api/pledges/route.ts` (Community Hub API)
+- `supabase/migrations/001_init.sql` (database tables, views, policies)
+
+If you are troubleshooting UI behavior, confirm your frontend routes/components are present in your local branch and that they consume the current API response fields below.
+
+---
+
 ## Demo
 
 ![ActionNode Demo](./public/demo-preview.png)
@@ -68,6 +81,13 @@ All third-party API keys live exclusively in server-side Route Handlers — the 
 3. **Input Validation**: Zod schemas on every user input — no raw strings hit the database.
 
 4. **CSP Headers**: Content Security Policy configured in `next.config.ts` to prevent XSS.
+
+### API Response Notes (April 18, 2026)
+
+- `GET /api/grid` now includes a `viewerGuide` object and human-friendly `zoneName` fields for easier interpretation in UI cards/tooltips.
+- `GET /api/audit` now includes `sourceUrl` for each product so the UI can deep-link to the Open Food Facts product page.
+- `GET /api/pledges` returns an `actionTypes` helper list for form labels.
+- `POST /api/pledges` accepts normalized action aliases (for example `earth day action`), and returns the inserted pledge payload so Recent Activities can update immediately without an extra fetch.
 
 ### Data Normalization (The Architecture Bit)
 

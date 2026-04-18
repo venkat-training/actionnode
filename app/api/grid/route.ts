@@ -12,6 +12,7 @@ type GridTier = 'green' | 'amber' | 'red'
 
 interface GridStatus {
   zone: string
+  zoneName: string
   intensity: number
   status: GridTier
   label: string
@@ -19,6 +20,15 @@ interface GridStatus {
   renewablePct: number
   unit: string
   cachedAt: string
+}
+
+const ZONE_LABELS: Record<string, string> = {
+  'AUS-NSW': 'New South Wales',
+  'AUS-VIC': 'Victoria',
+  'AUS-QLD': 'Queensland',
+  'AUS-SA': 'South Australia',
+  'AUS-WA': 'Western Australia',
+  'AUS-TAS': 'Tasmania',
 }
 
 function normalizeIntensity(intensity: number, zone: string): Omit<GridStatus, 'zone' | 'unit' | 'cachedAt'> {
@@ -48,7 +58,14 @@ function normalizeIntensity(intensity: number, zone: string): Omit<GridStatus, '
   // In production, fetch this directly from Electricity Maps breakdown endpoint
   const renewablePct = Math.max(10, Math.min(90, Math.round(100 - (intensity / 6))))
 
-  return { intensity, status, label, advice, renewablePct }
+  return {
+    zoneName: ZONE_LABELS[zone] || zone,
+    intensity,
+    status,
+    label,
+    advice,
+    renewablePct
+  }
 }
 
 async function fetchFromElectricityMaps(zone: string): Promise<number> {
@@ -145,6 +162,15 @@ export async function GET() {
       primary: zones[0],
       sparkline,
       bestHour: sparkline.indexOf(Math.min(...sparkline)),
+      viewerGuide: {
+        metric: 'Grid carbon intensity (gCO₂eq/kWh)',
+        howToRead: 'Lower is cleaner. Use electricity-heavy activities when intensity is lowest.',
+        statusLegend: {
+          green: 'Best time for charging EVs, laundry, heating/cooling and dishwashers.',
+          amber: 'Normal use is okay, but delay heavy loads if you can.',
+          red: 'Try to reduce non-essential electricity use until cleaner hours.',
+        },
+      },
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
