@@ -5,13 +5,14 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const ZONES = (process.env.GRID_ZONES || 'AUS-NSW,AUS-VIC,AUS-QLD').split(',')
+const ZONES = (process.env.GRID_ZONES || 'AU-NSW,AU-VIC,AU-QLD').split(',')
 const CACHE_MINUTES = parseInt(process.env.GRID_CACHE_MINUTES || '10')
 
 type GridTier = 'green' | 'amber' | 'red'
 
 interface GridStatus {
   zone: string
+  zoneName: string
   intensity: number
   status: GridTier
   label: string
@@ -19,6 +20,24 @@ interface GridStatus {
   renewablePct: number
   unit: string
   cachedAt: string
+}
+
+const ZONE_LABELS: Record<string, string> = {
+  'AU-NSW': 'New South Wales',
+  'AU-VIC': 'Victoria',
+  'AU-QLD': 'Queensland',
+  'AU-SA': 'South Australia',
+  'AU-WA': 'Western Australia',
+  'AU-TAS': 'Tasmania',
+}
+
+const FALLBACK_INTENSITY_BY_ZONE: Record<string, number> = {
+  'AU-NSW': 285,
+  'AU-VIC': 205,
+  'AU-QLD': 515,
+  'AU-SA': 180,
+  'AU-WA': 430,
+  'AU-TAS': 95,
 }
 
 function normalizeIntensity(intensity: number, zone: string): Omit<GridStatus, 'zone' | 'unit' | 'cachedAt'> {
@@ -48,38 +67,73 @@ function normalizeIntensity(intensity: number, zone: string): Omit<GridStatus, '
   // In production, fetch this directly from Electricity Maps breakdown endpoint
   const renewablePct = Math.max(10, Math.min(90, Math.round(100 - (intensity / 6))))
 
-  return { intensity, status, label, advice, renewablePct }
+  return {
+    zoneName: ZONE_LABELS[zone] || zone,
+    intensity,
+    status,
+    label,
+    advice,
+    renewablePct
+  }
 }
 
 async function fetchFromElectricityMaps(zone: string): Promise<number> {
   const apiKey = process.env.ELECTRICITY_MAPS_API_KEY
   if (!apiKey) throw new Error('ELECTRICITY_MAPS_API_KEY not configured')
 
-  const res = await fetch(
-    `https://api.electricitymaps.com/v3/carbon-intensity/latest?zone=${zone}`,
-    {
-      headers: { 'auth-token': apiKey },
-      next: { revalidate: CACHE_MINUTES * 60 }
-    }
-  )
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 7000)
+  let res: Response
+  try {
+    res = await fetch(
+      `https://api.electricitymaps.com/v3/carbon-intensity/latest?zone=${zone}`,
+      {
+        headers: { 'auth-token': apiKey },
+        next: { revalidate: CACHE_MINUTES * 60 },
+        signal: controller.signal,
+      }
+    )
+  } finally {
+    clearTimeout(timeout)
+  }
 
   if (!res.ok) throw new Error(`Electricity Maps API error: ${res.status}`)
   const data = await res.json()
-  return data.carbonIntensity
+  const value = typeof data.carbonIntensity === 'number'
+    ? data.carbonIntensity
+    : (typeof data.carbonIntensityAvg === 'number' ? data.carbonIntensityAvg : undefined)
+  if (typeof value !== 'number') throw new Error('Electricity Maps payload missing carbon intensity value')
+  return value
+}
+
+function getSupabaseAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return null
+  try {
+    return createClient(url, key)
+  } catch {
+    return null
+  }
 }
 
 async function getFromCacheOrFetch(zone: string): Promise<GridStatus> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-
+  const supabase = getSupabaseAdminClient()
+  let cached: { intensity: number, fetched_at: string } | null = null
+  let cacheUnavailable = false
   // Check cache first
-  const { data: cached } = await supabase
-    .from('grid_cache')
-    .select('*')
-    .eq('zone', zone)
-    .single()
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('grid_cache')
+        .select('intensity, fetched_at')
+        .eq('zone', zone)
+        .single()
+      cached = data
+    } catch {
+      cacheUnavailable = true
+    }
+  }
 
   const cacheExpiry = new Date(Date.now() - CACHE_MINUTES * 60 * 1000)
   if (cached && new Date(cached.fetched_at) > cacheExpiry) {
@@ -95,24 +149,36 @@ async function getFromCacheOrFetch(zone: string): Promise<GridStatus> {
   let intensity: number
   try {
     intensity = await fetchFromElectricityMaps(zone)
-  } catch {
+  } catch (error) {
     // Graceful fallback: use cached value even if expired, or realistic mock
     if (cached) return { zone, ...normalizeIntensity(cached.intensity, zone), unit: 'gCO₂eq/kWh', cachedAt: cached.fetched_at }
-    // Realistic NSW fallback (historically around 250-350 gCO2/kWh)
-    intensity = 285
+    intensity = FALLBACK_INTENSITY_BY_ZONE[zone] || FALLBACK_INTENSITY_BY_ZONE['AU-NSW']
+    if (error instanceof Error) {
+      console.warn(`Grid API fallback used for ${zone}: ${error.message}`)
+    }
   }
 
   const normalized = normalizeIntensity(intensity, zone)
   const now = new Date().toISOString()
 
   // Update cache (upsert)
-  await supabase.from('grid_cache').upsert({
-    zone,
-    intensity,
-    renewable_pct: normalized.renewablePct,
-    status: normalized.status,
-    fetched_at: now,
-  })
+  if (supabase) {
+    try {
+      await supabase.from('grid_cache').upsert({
+        zone,
+        intensity,
+        renewable_pct: normalized.renewablePct,
+        status: normalized.status,
+        fetched_at: now,
+      })
+    } catch {
+      cacheUnavailable = true
+    }
+  }
+
+  if (cacheUnavailable) {
+    console.warn(`Grid cache unavailable for zone ${zone}. Serving direct/fallback data.`)
+  }
 
   return { zone, ...normalized, unit: 'gCO₂eq/kWh', cachedAt: now }
 }
@@ -145,6 +211,15 @@ export async function GET() {
       primary: zones[0],
       sparkline,
       bestHour: sparkline.indexOf(Math.min(...sparkline)),
+      viewerGuide: {
+        metric: 'Grid carbon intensity (gCO₂eq/kWh)',
+        howToRead: 'Lower is cleaner. Use electricity-heavy activities when intensity is lowest.',
+        statusLegend: {
+          green: 'Best time for charging EVs, laundry, heating/cooling and dishwashers.',
+          amber: 'Normal use is okay, but delay heavy loads if you can.',
+          red: 'Try to reduce non-essential electricity use until cleaner hours.',
+        },
+      },
       timestamp: new Date().toISOString(),
     })
   } catch (error) {

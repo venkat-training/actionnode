@@ -82,12 +82,17 @@ npm run dev
 
 Visit: [http://localhost:3000](http://localhost:3000)
 
+> Note: this repository snapshot focuses on the Route Handlers and Supabase schema. If your UI pages are in a separate/private branch, run them alongside these APIs.
+
 ### Test Checklist:
 - [ ] Grid Health tab loads with carbon intensity data
 - [ ] Search "coca cola" in Plastic Audit — sees product + AI suggestion
 - [ ] Community tab shows pledge feed
 - [ ] Logging an action increments the counter
 - [ ] My Impact tab shows logged actions
+- [ ] `GET /api/grid` includes `viewerGuide` and per-zone `zoneName`
+- [ ] `GET /api/audit?q=coca+cola` includes `sourceUrl` in product response
+- [ ] `POST /api/pledges` returns full `pledge` payload for instant Recent Activities UI updates
 
 ---
 
@@ -100,6 +105,9 @@ grep -r "ELECTRICITY_MAPS" .next/static/ && echo "FAIL - key exposed!" || echo "
 
 # 2. Test grid endpoint (should work)
 curl http://localhost:3000/api/grid
+
+# Optional: verify Electricity Maps token directly (NSW)
+curl "https://api.electricitymaps.com/v3/carbon-intensity/latest?zone=AU-NSW" -H "auth-token: YOUR_TOKEN"
 
 # 3. Test audit endpoint
 curl "http://localhost:3000/api/audit?q=coca+cola"
