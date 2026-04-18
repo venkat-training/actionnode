@@ -23,21 +23,12 @@ interface GridStatus {
 }
 
 const ZONE_LABELS: Record<string, string> = {
-  'AU-NSW': 'New South Wales',
-  'AU-VIC': 'Victoria',
-  'AU-QLD': 'Queensland',
-  'AU-SA': 'South Australia',
-  'AU-WA': 'Western Australia',
-  'AU-TAS': 'Tasmania',
-}
-
-const FALLBACK_INTENSITY_BY_ZONE: Record<string, number> = {
-  'AU-NSW': 285,
-  'AU-VIC': 205,
-  'AU-QLD': 515,
-  'AU-SA': 180,
-  'AU-WA': 430,
-  'AU-TAS': 95,
+  'AUS-NSW': 'New South Wales',
+  'AUS-VIC': 'Victoria',
+  'AUS-QLD': 'Queensland',
+  'AUS-SA': 'South Australia',
+  'AUS-WA': 'Western Australia',
+  'AUS-TAS': 'Tasmania',
 }
 
 function normalizeIntensity(intensity: number, zone: string): Omit<GridStatus, 'zone' | 'unit' | 'cachedAt'> {

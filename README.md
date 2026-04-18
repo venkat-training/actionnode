@@ -85,9 +85,7 @@ All third-party API keys live exclusively in server-side Route Handlers — the 
 ### API Response Notes (April 18, 2026)
 
 - `GET /api/grid` now includes a `viewerGuide` object and human-friendly `zoneName` fields for easier interpretation in UI cards/tooltips.
-- `GET /api/grid` defaults to Electricity Maps zones `AU-NSW,AU-VIC,AU-QLD` and serves per-zone fallback intensity data if live API/cache is unavailable, so viewers still see meaningful values.
 - `GET /api/audit` now includes `sourceUrl` for each product so the UI can deep-link to the Open Food Facts product page.
-- `GET /api/audit` uses retry + timeout handling for Open Food Facts and returns a clear transient message when upstream lookup is temporarily unavailable.
 - `GET /api/pledges` returns an `actionTypes` helper list for form labels.
 - `POST /api/pledges` accepts normalized action aliases (for example `earth day action`), and returns the inserted pledge payload so Recent Activities can update immediately without an extra fetch.
 
