@@ -134,7 +134,7 @@ I chose Open Food Facts over proprietary barcode APIs because:
 ## Running Locally
 
 ```bash
-git clone https://github.com/yourusername/actionnode
+git clone https://github.com/venkat-training/actionnode.git
 cd actionnode
 cp .env.example .env.local
 # Fill in your API keys (see .env.example)
