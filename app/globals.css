@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0f0a; --surface: #111811; --s2: #182018; --s3: #1e281e;
+  --border: #2a382a; --b2: #3a4a3a; --accent: #4ade80; --a2: #86efac;
+  --glow: #22c55e; --amber: #f59e0b; --red: #ef4444;
+  --text: #e2ece2; --text2: #8fa88f; --text3: #5a705a;
+}
+
+body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::selection { background: rgba(34,197,94,0.2); }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+@keyframes pulse-dot { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+.fade-up  { animation: fadeUp 0.35s ease both; }
+.slide-up { animation: slideUp 0.3s ease both; }
+.spinner  { width:18px; height:18px; border:2px solid var(--border); border-top-color:var(--glow); border-radius:50%; animation:spin 0.75s linear infinite; flex-shrink:0; }
+.status-dot { width:8px; height:8px; border-radius:50%; display:inline-block; animation:pulse-dot 2s ease-in-out infinite; }
+.dot-green { background:var(--glow); } .dot-amber { background:var(--amber); } .dot-red { background:var(--red); }
